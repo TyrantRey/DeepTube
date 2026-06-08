@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import re
 
 from google import genai
@@ -10,6 +11,8 @@ from google.genai import types
 from ..config import get_settings
 
 # Matches [MM:SS] or [H:MM:SS] timestamp markers the model is told to cite.
+# NOTE: this pattern and `_marker_to_seconds` are mirrored in the frontend
+# (`frontend/src/App.tsx`: `TS_RE` / `tsToSeconds`). Keep the two in sync.
 _TIMESTAMP_RE = re.compile(r"\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]")
 
 _SYSTEM_PROMPT = """\
@@ -83,6 +86,7 @@ def extract_citations(answer: str, segments: list[dict]) -> list[dict]:
     if not segments:
         return []
     ordered = sorted(segments, key=lambda s: float(s.get("start", 0.0)))
+    starts = [float(s.get("start", 0.0)) for s in ordered]
 
     citations: list[dict] = []
     seen: set[str] = set()
@@ -93,12 +97,11 @@ def extract_citations(answer: str, segments: list[dict]) -> list[dict]:
         seen.add(label)
 
         t = _marker_to_seconds(match)
-        covering = [s for s in ordered if float(s.get("start", 0.0)) <= t]
-        chosen = (
-            covering[-1]
-            if covering
-            else min(ordered, key=lambda s: abs(float(s.get("start", 0.0)) - t))
-        )
+        # Binary-search the rightmost segment whose start <= t (the one "covering"
+        # the marker); if the marker precedes every segment, fall back to the
+        # first (nearest) one. O(log N) per marker rather than a full O(N) scan.
+        idx = bisect.bisect_right(starts, t) - 1
+        chosen = ordered[idx] if idx >= 0 else ordered[0]
         quote = (chosen.get("text") or "").strip()
         if len(quote) > 140:
             quote = quote[:140].rstrip() + "…"

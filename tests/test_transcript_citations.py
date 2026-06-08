@@ -42,6 +42,22 @@ def test_extract_citations_handles_hour_timestamps():
     assert cites == [{"timestamp": "1:00:00", "start": 3600.0, "quote": "hour mark"}]
 
 
+def test_extract_citations_picks_nearest_when_out_of_range():
+    # Segments start at 60s/120s so a marker can fall before the first one.
+    segs = [
+        {"start": 60.0, "timestamp": "01:00", "text": "first"},
+        {"start": 120.0, "timestamp": "02:00", "text": "last"},
+    ]
+    # Before the first segment -> nearest segment is the first.
+    assert extract_citations("intro [00:30]", segs) == [
+        {"timestamp": "00:30", "start": 60.0, "quote": "first"}
+    ]
+    # After the last segment -> nearest segment is the last.
+    assert extract_citations("outro [05:00]", segs) == [
+        {"timestamp": "05:00", "start": 120.0, "quote": "last"}
+    ]
+
+
 # ── GET /transcript/{id} ─────────────────────────────────────────────────────
 
 
