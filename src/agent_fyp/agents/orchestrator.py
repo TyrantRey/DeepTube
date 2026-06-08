@@ -52,10 +52,13 @@ class OrchestratorService:
         generate_slides: bool = False,
         language: str | None = None,
         run_id: str | None = None,
+        api_key: str | None = None,
     ) -> dict:
         """Run the full pipeline and return a result dict.
 
         ``run_id`` is the internal uuid7 used as the canonical ``video_id``.
+        ``api_key`` is an optional per-user Gemini key (BYOK); when omitted the
+        server's ``GOOGLE_API_KEY`` is used.
         """
         run_id = run_id or str(uuid7())
         log = get_run_logger(run_id, name="agent_fyp.orchestrator")
@@ -67,6 +70,7 @@ class OrchestratorService:
             "generate_slides": generate_slides,
             "language": language,
             "run_id": run_id,
+            "api_key": api_key,
         }
 
         await self.session_service.create_session(

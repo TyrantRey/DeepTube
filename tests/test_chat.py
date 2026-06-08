@@ -28,7 +28,7 @@ class _FakeClient:
 
 def test_chat_grounds_on_transcript(monkeypatch):
     fake = _FakeClient("答案在 [00:05]。")
-    monkeypatch.setattr(chat, "_get_client", lambda: fake)
+    monkeypatch.setattr(chat, "_get_client", lambda api_key=None: fake)
 
     answer = chat.chat_with_transcript(
         "[00:05] hello world",

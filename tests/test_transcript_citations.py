@@ -107,7 +107,9 @@ def test_chat_endpoint_returns_citations(monkeypatch, sample_transcript):
     monkeypatch.setattr(
         app_module,
         "chat_with_transcript",
-        lambda transcript_text, message, history: "The key idea is at [01:05].",
+        lambda transcript_text, message, history, api_key=None: (
+            "The key idea is at [01:05]."
+        ),
     )
 
     resp = client.post("/chat/cite-vid", json={"message": "summarize"})

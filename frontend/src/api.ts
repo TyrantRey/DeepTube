@@ -5,8 +5,69 @@
 // the stored record. Slides, Mermaid, chat and history search have their own
 // endpoints.
 
+// ── Runtime-configurable settings (persisted in localStorage) ────────────────
+// A static deploy (e.g. GitHub Pages) can point at any backend and let each user
+// bring their own Gemini API key — both are editable at runtime via the settings
+// UI, overriding the build-time VITE_API_URL default.
+
+const API_URL_KEY = 'agentfyp_api_url';
+const GEMINI_KEY = 'agentfyp_gemini_key';
+
+/** Build-time default base URL (fallback when the user hasn't set one). */
 export const API_URL: string =
   import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+function readLS(key: string): string {
+  try {
+    return localStorage.getItem(key)?.trim() ?? '';
+  } catch {
+    return ''; // localStorage unavailable (private mode / SSR)
+  }
+}
+
+function writeLS(key: string, value: string): void {
+  try {
+    const v = value.trim();
+    if (v) localStorage.setItem(key, v);
+    else localStorage.removeItem(key);
+  } catch {
+    /* ignore persistence failures */
+  }
+}
+
+/** Backend base URL: a user override if set, else the build-time default. */
+export function getApiUrl(): string {
+  return (readLS(API_URL_KEY) || API_URL).replace(/\/+$/, '');
+}
+export function setApiUrl(url: string): void {
+  writeLS(API_URL_KEY, url);
+}
+
+/** The user's own Gemini API key (BYOK), or '' when none is set. */
+export function getApiKey(): string {
+  return readLS(GEMINI_KEY);
+}
+export function setApiKey(key: string): void {
+  writeLS(GEMINI_KEY, key);
+}
+
+/** fetch() against the configured backend, injecting the BYOK key header. */
+function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const key = getApiKey();
+  if (key) headers.set('X-Gemini-Api-Key', key);
+  return fetch(`${getApiUrl()}${path}`, { ...init, headers });
+}
+
+export interface AppConfig {
+  requires_api_key: boolean;
+  gemini_model: string;
+}
+
+/** Public backend config: whether the user must supply their own Gemini key. */
+export async function getConfig(): Promise<AppConfig> {
+  return asJson<AppConfig>(await apiFetch('/config'));
+}
 
 export interface ProcessRequest {
   youtube_url: string;
@@ -111,7 +172,7 @@ async function asJson<T>(res: Response): Promise<T> {
 }
 
 export async function startProcess(req: ProcessRequest): Promise<JobCreated> {
-  const res = await fetch(`${API_URL}/process`, {
+  const res = await apiFetch('/process', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
@@ -120,16 +181,16 @@ export async function startProcess(req: ProcessRequest): Promise<JobCreated> {
 }
 
 export async function getJob(videoId: string): Promise<JobStatus> {
-  return asJson<JobStatus>(await fetch(`${API_URL}/jobs/${videoId}`));
+  return asJson<JobStatus>(await apiFetch(`/jobs/${videoId}`));
 }
 
 export async function getVideo(videoId: string): Promise<VideoRecord> {
-  return asJson<VideoRecord>(await fetch(`${API_URL}/video/${videoId}`));
+  return asJson<VideoRecord>(await apiFetch(`/video/${videoId}`));
 }
 
 export async function getHistory(): Promise<HistoryItem[]> {
   const data = await asJson<{ items: HistoryItem[] }>(
-    await fetch(`${API_URL}/history`),
+    await apiFetch('/history'),
   );
   return data.items;
 }
@@ -138,23 +199,23 @@ export async function searchHistory(
   q: string,
   topK = 5,
 ): Promise<HistoryHit[]> {
-  const url = `${API_URL}/history/search?q=${encodeURIComponent(q)}&top_k=${topK}`;
+  const path = `/history/search?q=${encodeURIComponent(q)}&top_k=${topK}`;
   const data = await asJson<{ query: string; results: HistoryHit[] }>(
-    await fetch(url),
+    await apiFetch(path),
   );
   return data.results;
 }
 
 export async function getMermaid(videoId: string): Promise<string> {
   const data = await asJson<{ video_id: string; mermaid: string }>(
-    await fetch(`${API_URL}/mermaid/${videoId}`),
+    await apiFetch(`/mermaid/${videoId}`),
   );
   return data.mermaid;
 }
 
 export async function getTranscript(videoId: string): Promise<SegmentHit[]> {
   const data = await asJson<{ video_id: string; segments: SegmentHit[] }>(
-    await fetch(`${API_URL}/transcript/${videoId}`),
+    await apiFetch(`/transcript/${videoId}`),
   );
   return data.segments;
 }
@@ -164,7 +225,7 @@ export async function chat(
   message: string,
   history: ChatTurn[],
 ): Promise<ChatReply> {
-  const res = await fetch(`${API_URL}/chat/${videoId}`, {
+  const res = await apiFetch(`/chat/${videoId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history }),
@@ -178,7 +239,7 @@ export async function chat(
 }
 
 export function pptUrl(videoId: string): string {
-  return `${API_URL}/ppt/${videoId}`;
+  return `${getApiUrl()}/ppt/${videoId}`;
 }
 
 /** True when a job error / detail indicates an unresolvable YouTube URL. */

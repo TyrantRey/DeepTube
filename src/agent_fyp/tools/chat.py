@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from ..config import get_settings
+from ..llm import get_genai_client
 
 # Matches [MM:SS] or [H:MM:SS] timestamp markers the model is told to cite.
 # NOTE: this pattern and `_marker_to_seconds` are mirrored in the frontend
@@ -28,16 +29,9 @@ _SYSTEM_PROMPT = """\
 影片逐字稿：
 """
 
-_client: genai.Client | None = None
-
-
-def _get_client() -> genai.Client:
-    """Return a cached Gemini client (reads GOOGLE_API_KEY from settings/env)."""
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = genai.Client(api_key=settings.google_api_key or None)
-    return _client
+def _get_client(api_key: str | None = None) -> genai.Client:
+    """Return a Gemini client, preferring the caller's key over the server key."""
+    return get_genai_client(api_key)
 
 
 def _to_contents(history: list[dict] | None, message: str) -> list[dict]:
@@ -51,11 +45,14 @@ def _to_contents(history: list[dict] | None, message: str) -> list[dict]:
 
 
 def chat_with_transcript(
-    transcript_text: str, message: str, history: list[dict] | None = None
+    transcript_text: str,
+    message: str,
+    history: list[dict] | None = None,
+    api_key: str | None = None,
 ) -> str:
     """Answer ``message`` about a video, grounded in ``transcript_text``."""
     settings = get_settings()
-    client = _get_client()
+    client = _get_client(api_key)
 
     response = client.models.generate_content(
         model=settings.gemini_model,

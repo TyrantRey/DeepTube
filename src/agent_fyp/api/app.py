@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from ..config import get_settings
+from ..llm import MissingApiKeyError, server_has_api_key
 from ..logging_config import configure_logging
 from ..tools.chat import chat_with_transcript, extract_citations
 from ..tools.mermaid import generate_mermaid
@@ -23,6 +24,7 @@ from .jobs import JobStore, run_job
 from .schemas import (
     ChatRequest,
     ChatResponse,
+    ConfigResponse,
     HistoryItem,
     HistoryListResponse,
     HistorySearchResponse,
@@ -34,6 +36,13 @@ from .schemas import (
     TranscriptResponse,
     VideoRecordResponse,
 )
+
+
+def gemini_api_key(
+    x_gemini_api_key: str | None = Header(default=None),
+) -> str | None:
+    """Extract the optional per-user Gemini key (BYOK) from the request header."""
+    return (x_gemini_api_key or "").strip() or None
 
 configure_logging()
 
@@ -55,17 +64,37 @@ app.add_middleware(
 _store = JobStore()
 
 
+@app.exception_handler(MissingApiKeyError)
+async def _missing_api_key_handler(_request, exc: MissingApiKeyError) -> JSONResponse:
+    """Surface a missing Gemini key as an actionable 400 (not a generic 500)."""
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/config", response_model=ConfigResponse)
+def config() -> ConfigResponse:
+    """Public client config: does the user need to bring their own Gemini key?"""
+    return ConfigResponse(
+        requires_api_key=not server_has_api_key(),
+        gemini_model=get_settings().gemini_model,
+    )
+
+
 @app.post("/process", response_model=JobCreated, status_code=202)
-async def process(req: ProcessRequest, background: BackgroundTasks) -> JobCreated:
+async def process(
+    req: ProcessRequest,
+    background: BackgroundTasks,
+    api_key: str | None = Depends(gemini_api_key),
+) -> JobCreated:
     """Enqueue a video for processing.
 
     Returns the internal ``video_id`` (a uuid7) — the single id used to look up
-    the job, the video record, and the slides.
+    the job, the video record, and the slides. An optional ``X-Gemini-Api-Key``
+    header lets the caller process with their own Gemini key.
     """
     video_id = _store.create()
     background.add_task(
@@ -76,6 +105,7 @@ async def process(req: ProcessRequest, background: BackgroundTasks) -> JobCreate
         req.video_type,
         req.generate_slides,
         req.language,
+        api_key,
     )
     return JobCreated(video_id=video_id, status="pending")
 
@@ -150,7 +180,11 @@ def get_transcript(video_id: str) -> TranscriptResponse:
 
 
 @app.post("/chat/{video_id}", response_model=ChatResponse)
-def chat(video_id: str, req: ChatRequest) -> ChatResponse:
+def chat(
+    video_id: str,
+    req: ChatRequest,
+    api_key: str | None = Depends(gemini_api_key),
+) -> ChatResponse:
     """Chat with a processed video, grounded in its transcript (+ timestamp citations)."""
     if get_record(video_id) is None:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -163,13 +197,17 @@ def chat(video_id: str, req: ChatRequest) -> ChatResponse:
         transcript_text,
         req.message,
         [turn.model_dump() for turn in req.history],
+        api_key=api_key,
     )
     citations = extract_citations(answer, segments)
     return ChatResponse(video_id=video_id, answer=answer, citations=citations)
 
 
 @app.get("/mermaid/{video_id}", response_model=MermaidResponse)
-def get_mermaid(video_id: str) -> MermaidResponse:
+def get_mermaid(
+    video_id: str,
+    api_key: str | None = Depends(gemini_api_key),
+) -> MermaidResponse:
     """Return a Mermaid mindmap of the video (generated from its summary, cached)."""
     record = get_record(video_id)
     if record is None:
@@ -179,7 +217,7 @@ def get_mermaid(video_id: str) -> MermaidResponse:
     if not record.summary_md:
         raise HTTPException(status_code=404, detail="No summary to map")
 
-    record.mermaid = generate_mermaid(record.summary_md, record.title)
+    record.mermaid = generate_mermaid(record.summary_md, record.title, api_key=api_key)
     save_record(record)
     return MermaidResponse(video_id=video_id, mermaid=record.mermaid)
 
