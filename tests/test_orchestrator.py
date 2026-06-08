@@ -13,7 +13,7 @@ import pytest
 
 from agent_fyp.agents import ingestion, summary
 from agent_fyp.agents.orchestrator import OrchestratorService
-from agent_fyp.models import Summary, Transcript, VideoMetadata
+from agent_fyp.models import Summary, VideoMetadata
 from agent_fyp.tools import vectorstore
 
 

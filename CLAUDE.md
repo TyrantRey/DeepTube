@@ -22,13 +22,14 @@ uv run pytest                             # full suite (network + LLM are mocked
 uv run pytest tests/test_summarizer.py::test_name   # single test
 ```
 
-Frontend (run from `frontend/`; needs Node ≥ 20):
+Frontend (run from `frontend/`; needs Node ≥ 20 + [pnpm](https://pnpm.io/),
+pinned via `packageManager` in `package.json` — `corepack enable` picks it up):
 
 ```bash
-npm install
-npm run dev        # http://localhost:5173 (proxies to VITE_API_URL, default :8000)
-npm run build      # tsc -b && vite build
-npm run lint       # eslint
+pnpm install
+pnpm dev           # http://localhost:5173 (proxies to VITE_API_URL, default :8000)
+pnpm build         # tsc -b && vite build
+pnpm lint          # eslint
 ```
 
 Lint/format is driven by **Trunk** (`.trunk/trunk.yaml`) — `trunk check` / `trunk fmt`

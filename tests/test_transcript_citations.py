@@ -25,8 +25,16 @@ def test_extract_citations_maps_markers_to_segments():
     answer = "It covers variables [01:05] and then loops [02:10]."
     cites = extract_citations(answer, _SEGMENTS)
     assert len(cites) == 2
-    assert cites[0] == {"timestamp": "01:05", "start": 65.0, "quote": "Variables and types."}
-    assert cites[1] == {"timestamp": "02:10", "start": 130.0, "quote": "Functions and loops."}
+    assert cites[0] == {
+        "timestamp": "01:05",
+        "start": 65.0,
+        "quote": "Variables and types.",
+    }
+    assert cites[1] == {
+        "timestamp": "02:10",
+        "start": 130.0,
+        "quote": "Functions and loops.",
+    }
 
 
 def test_extract_citations_dedupes_and_handles_no_match():
@@ -63,7 +71,10 @@ def test_extract_citations_picks_nearest_when_out_of_range():
 
 def test_transcript_endpoint_returns_segments(sample_transcript):
     record = VideoRecord(
-        video_id="tvid", youtube_id="y", url="https://youtu.be/y", title="T",
+        video_id="tvid",
+        youtube_id="y",
+        url="https://youtu.be/y",
+        title="T",
         summary_md="#",
     )
     upsert_history(record, sample_transcript)
@@ -86,7 +97,10 @@ def test_transcript_endpoint_404s(sample_transcript):
 
 def test_chat_endpoint_returns_citations(monkeypatch, sample_transcript):
     record = VideoRecord(
-        video_id="cite-vid", youtube_id="y", url="https://youtu.be/y", title="T",
+        video_id="cite-vid",
+        youtube_id="y",
+        url="https://youtu.be/y",
+        title="T",
         summary_md="#",
     )
     upsert_history(record, sample_transcript)

@@ -6,8 +6,6 @@ return both the related videos and the relevant segments within them. A small
 JSON file holds the authoritative `VideoRecord` for each processed video.
 """
 
-
-
 import json
 from functools import lru_cache
 
@@ -133,7 +131,8 @@ def get_transcript_segments(video_id: str) -> list[dict]:
     metadatas = data.get("metadatas") or []
 
     pairs = sorted(
-        zip(metadatas, documents), key=lambda pm: float(pm[0].get("start", 0.0))
+        zip(metadatas, documents, strict=False),
+        key=lambda pm: float(pm[0].get("start", 0.0)),
     )
     segments: list[dict] = []
     for meta, doc in pairs:
@@ -170,7 +169,7 @@ def query_history(query: str, top_k: int | None = None) -> list[dict]:
     distances = result.get("distances", [[]])[0]
 
     grouped: dict[str, dict] = {}
-    for doc, meta, dist in zip(documents, metadatas, distances):
+    for doc, meta, dist in zip(documents, metadatas, distances, strict=False):
         video_id = meta["video_id"]
         seg = Segment(start=float(meta.get("start", 0.0)), text=doc)
         entry = grouped.setdefault(

@@ -1,7 +1,5 @@
 """Stage 2 (summary) unit tests: Claude call mocked, parsing + override verified."""
 
-
-
 from agent_fyp.tools import summarizer
 
 

@@ -25,7 +25,7 @@ def test_process_flow_and_lookups(monkeypatch, sample_transcript):
         youtube_url, video_type=None, generate_slides=False, language=None, run_id=None
     ):
         record = VideoRecord(
-            video_id=run_id,  # internal uuid7 minted by /process
+            video_id=run_id,  # internal uuid7 minted by /process  # ty:ignore[invalid-argument-type]
             youtube_id="abc12345678",
             url="https://youtu.be/abc12345678",
             title="Python Basics",

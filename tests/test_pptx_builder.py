@@ -1,7 +1,5 @@
 """Stage 3 (slides) unit tests: Markdown parsing and .pptx generation."""
 
-
-
 from pptx import Presentation
 
 from agent_fyp.tools.pptx_builder import generate_learning_path, parse_summary_markdown

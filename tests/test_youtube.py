@@ -1,7 +1,5 @@
 """Stage 1 (ingestion) unit tests: video-id parsing, captions, Whisper fallback."""
 
-
-
 import pytest
 
 from agent_fyp.models import Transcript
@@ -87,7 +85,9 @@ def test_download_and_transcribe_isolates_and_cleans_up(monkeypatch):
     monkeypatch.setattr(
         youtube,
         "transcribe_audio",
-        lambda path: Transcript(text="hi", segments=[], language="en", source="whisper"),
+        lambda path: Transcript(
+            text="hi", segments=[], language="en", source="whisper"
+        ),
     )
 
     transcript = youtube.download_and_transcribe("https://youtu.be/abc12345678")

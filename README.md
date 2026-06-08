@@ -15,17 +15,17 @@ and chat with each video's transcript.
   pipeline, shows live stage/progress, renders the summary + Mermaid map, lets you
   download slides, and chats with the video.
 
-```
+```text
 repo/
 ├── src/agent_fyp/   FastAPI backend + ADK agents + tools
-├── frontend/        React + Vite UI  (npm run dev → http://localhost:5173)
+├── frontend/        React + Vite UI  (pnpm dev → http://localhost:5173)
 ├── tests/           pytest suite (network/LLM mocked)
 └── docker-compose.yml   api + frontend
 ```
 
 ## Architecture
 
-```
+```text
 POST /process { youtube_url, video_type?, generate_slides }
    → OrchestratorService (ADK Runner + SequentialAgent)
        1. IngestionAgent  fetch_transcript → captions, else download_and_transcribe (Whisper)
@@ -73,13 +73,16 @@ uv run python scripts/run_pipeline.py "https://www.youtube.com/watch?v=<id>"
 
 ### Frontend
 
-Requires Node ≥ 20 (the toolchain is Vite 6 + React 19).
+Requires Node ≥ 20 and [pnpm](https://pnpm.io/) (the toolchain is Vite 6 +
+React 19). The pnpm version is pinned via `packageManager` in
+`frontend/package.json`, so `corepack enable` will use the right one
+(`npm i -g pnpm` also works).
 
 ```bash
 cd frontend
-npm install
+pnpm install
 cp .env.example .env          # VITE_API_URL defaults to http://localhost:8000
-npm run dev                    # http://localhost:5173
+pnpm dev                       # http://localhost:5173
 ```
 
 Start the backend first, then the frontend; the SPA talks to the API at
@@ -105,18 +108,18 @@ is read from `.env`.
 for everything else — the job, the record, and the slides all share it. The
 original YouTube id is returned separately as `youtube_id`.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `POST` | `/process` | Enqueue a video; body `{youtube_url, video_type?, generate_slides}` → `{video_id, status}` |
-| `GET`  | `/list/process` | Current videos grouped: `{processing: [...], finished: [...]}` |
-| `GET`  | `/history` | All processed videos (newest first) for the history sidebar |
-| `GET`  | `/jobs/{video_id}` | Job status + `stage`/`progress`/`detail` + pipeline result (`cached` on a cache hit) |
-| `GET`  | `/video/{video_id}` | Stored `VideoRecord` (`video_id`, `youtube_id`, url, summary…) |
-| `GET`  | `/ppt/{video_id}` | Download the generated `.pptx` |
-| `POST` | `/chat/{video_id}` | Chat with the video's transcript; body `{message, history?}` → `{video_id, answer}` |
-| `GET`  | `/mermaid/{video_id}` | Mermaid mindmap of the video (from its summary, cached) → `{video_id, mermaid}` |
-| `GET`  | `/history/search?q=...&top_k=5` | Semantic search → related videos + segments |
-| `GET`  | `/health` | Liveness check |
+| Method | Path                            | Purpose                                                                                    |
+| ------ | ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `POST` | `/process`                      | Enqueue a video; body `{youtube_url, video_type?, generate_slides}` → `{video_id, status}` |
+| `GET`  | `/list/process`                 | Current videos grouped: `{processing: [...], finished: [...]}`                             |
+| `GET`  | `/history`                      | All processed videos (newest first) for the history sidebar                                |
+| `GET`  | `/jobs/{video_id}`              | Job status + `stage`/`progress`/`detail` + pipeline result (`cached` on a cache hit)       |
+| `GET`  | `/video/{video_id}`             | Stored `VideoRecord` (`video_id`, `youtube_id`, url, summary…)                             |
+| `GET`  | `/ppt/{video_id}`               | Download the generated `.pptx`                                                             |
+| `POST` | `/chat/{video_id}`              | Chat with the video's transcript; body `{message, history?}` → `{video_id, answer}`        |
+| `GET`  | `/mermaid/{video_id}`           | Mermaid mindmap of the video (from its summary, cached) → `{video_id, mermaid}`            |
+| `GET`  | `/history/search?q=...&top_k=5` | Semantic search → related videos + segments                                                |
+| `GET`  | `/health`                       | Liveness check                                                                             |
 
 ## Tests
 
