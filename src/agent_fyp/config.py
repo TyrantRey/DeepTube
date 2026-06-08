@@ -31,12 +31,32 @@ class Settings(BaseSettings):
     # --- Storage paths ----------------------------------------------------
     data_dir: Path = Path("data")
 
+    # --- API / CORS -------------------------------------------------------
+    # Comma-separated list of allowed browser origins for the frontend.
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:4173,http://127.0.0.1:4173"
+    )
+
     # --- Behaviour toggles ------------------------------------------------
     keep_audio: bool = False
     summary_max_tokens: int = 4096
     chat_max_tokens: int = 1024
     mermaid_max_tokens: int = 1024
     history_top_k: int = 5
+
+    # --- Long-video segmentation -----------------------------------------
+    # Transcripts whose timestamped text exceeds this many characters are
+    # summarized in chunks and then merged (see tools/summarizer.py).
+    summary_segment_char_threshold: int = 9000
+    # Target size (characters of timestamped text) per summarization chunk.
+    summary_segment_chunk_chars: int = 6000
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        """Parsed CORS origins. ``*`` (anywhere in the list) allows all."""
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        return ["*"] if "*" in origins else origins
 
     @property
     def downloads_dir(self) -> Path:

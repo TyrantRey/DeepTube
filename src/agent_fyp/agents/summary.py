@@ -9,6 +9,7 @@ from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 
+from .. import progress
 from ..logging_config import get_run_logger
 from ..models import Transcript
 from ..tools.summarizer import summarize_content
@@ -21,11 +22,13 @@ class SummaryAgent(BaseAgent):
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         state = ctx.session.state
-        log = get_run_logger(state["run_id"], name="agent_fyp.summary")
+        run_id = state["run_id"]
+        log = get_run_logger(run_id, name="agent_fyp.summary")
 
+        progress.report(run_id, "summarizing", 0.4, "產生結構化摘要")
         transcript = Transcript(**state["transcript"])
         summary = await asyncio.to_thread(
-            summarize_content, transcript, state.get("video_type")
+            summarize_content, transcript, state.get("video_type"), run_id=run_id
         )
 
         state["summary_md"] = summary.markdown

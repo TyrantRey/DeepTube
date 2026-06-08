@@ -1,0 +1,60 @@
+# ==========================================
+# 🚨 核心金鑰與敏感環境變數
+# ==========================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ==========================================
+# 📦 Node.js / React 前端雜物
+# ==========================================
+node_modules/
+/frontend/node_modules/
+dist/
+build/
+
+# 🔒 封鎖前端工具產生的本地「快取暫存資料夾」
+.eslintcache
+.stylelintcache
+.turbo/
+.pnpm-store/
+.npm/
+.yarn/
+.vite/            
+# ==========================================
+# 🐍 Python / FastAPI 後端雜物
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# ==========================================
+# 🐋 Docker 暫存與本地日誌
+# ==========================================
+*.log
+docker-compose.override.yml
+
+# ==========================================
+# 💻 系統與編輯器快取 (MacOS / Windows / VS Code)
+# ==========================================
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
+.vscode/          # 如果團隊有共用 VS Code 設定，可視情況移除此行
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.svg
+*.png

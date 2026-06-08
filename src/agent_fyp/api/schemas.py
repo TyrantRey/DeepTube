@@ -31,11 +31,16 @@ class PipelineResult(BaseModel):
     video_type: str | None = None
     summary_md: str | None = None
     slides_path: str | None = None
+    cached: bool = False
 
 
 class JobStatus(BaseModel):
     video_id: str
     status: Literal["pending", "running", "completed", "failed"]
+    stage: str = "pending"
+    progress: float = 0.0
+    detail: str | None = None
+    cached: bool = False
     result: PipelineResult | None = None
     error: str | None = None
 
@@ -92,6 +97,23 @@ class VideoRecordResponse(BaseModel):
     summary_md: str = ""
     slides_path: str | None = None
     mermaid: str | None = None
+
+
+class HistoryItem(BaseModel):
+    """A lightweight history-list entry for the frontend sidebar."""
+
+    video_id: str
+    youtube_id: str = ""
+    url: str = ""
+    title: str = ""
+    video_type: str | None = None
+    summary_md: str = ""
+    has_slides: bool = False
+    has_mermaid: bool = False
+
+
+class HistoryListResponse(BaseModel):
+    items: list[HistoryItem]
 
 
 class MermaidResponse(BaseModel):
