@@ -1,5 +1,5 @@
-import { Children, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import {
   Button,
   Input,
@@ -63,6 +63,9 @@ function welcomeText(title: string, summary: string): string {
 }
 
 // ── Timestamp helpers: turn [MM:SS] / [H:MM:SS] text into seek buttons ───────
+// NOTE: this pattern and `tsToSeconds` mirror the backend
+// (`src/agent_fyp/tools/chat.py`: `_TIMESTAMP_RE` / `_marker_to_seconds`).
+// Keep the two in sync.
 const TS_RE = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g;
 
 function tsToSeconds(a: string, b: string, c?: string): number {
@@ -96,10 +99,19 @@ function linkifyTimestamps(text: string, onSeek: (s: number) => void): ReactNode
   return out;
 }
 
+// Recursively walk every descendant text node so timestamps nested inside
+// formatting (e.g. <strong>[01:05]</strong>) get linkified too, not just the
+// top-level string children of an <li>/<p>.
 function renderWithSeek(children: ReactNode, onSeek: (s: number) => void): ReactNode {
-  return Children.map(children, (child) =>
-    typeof child === 'string' ? linkifyTimestamps(child, onSeek) : child,
-  );
+  return Children.map(children, (child) => {
+    if (typeof child === 'string') return linkifyTimestamps(child, onSeek);
+    if (isValidElement(child)) {
+      const el = child as ReactElement<{ children?: ReactNode }>;
+      if (el.props.children == null) return child;
+      return cloneElement(el, undefined, renderWithSeek(el.props.children, onSeek));
+    }
+    return child;
+  });
 }
 
 // ── Mermaid knowledge-map panel (lazy: fetches on first view) ────────────────
