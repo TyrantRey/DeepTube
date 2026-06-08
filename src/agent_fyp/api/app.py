@@ -10,13 +10,13 @@ from fastapi.responses import FileResponse
 
 from ..config import get_settings
 from ..logging_config import configure_logging
-from ..tools.chat import chat_with_transcript
+from ..tools.chat import chat_with_transcript, extract_citations
 from ..tools.mermaid import generate_mermaid
 from ..tools.vectorstore import (
     get_record,
-    get_transcript_text,
-    list_records,
+    get_transcript_segments,
     query_history,
+    list_records,
     save_record,
 )
 from .jobs import JobStore, run_job
@@ -31,6 +31,7 @@ from .schemas import (
     MermaidResponse,
     ProcessListResponse,
     ProcessRequest,
+    TranscriptResponse,
     VideoRecordResponse,
 )
 
@@ -137,21 +138,34 @@ def get_ppt(video_id: str) -> FileResponse:
     )
 
 
-@app.post("/chat/{video_id}", response_model=ChatResponse)
-def chat(video_id: str, req: ChatRequest) -> ChatResponse:
-    """Chat with a processed video, grounded in its transcript."""
+@app.get("/transcript/{video_id}", response_model=TranscriptResponse)
+def get_transcript(video_id: str) -> TranscriptResponse:
+    """Return the video's full timestamped transcript (for the transcript viewer)."""
     if get_record(video_id) is None:
         raise HTTPException(status_code=404, detail="Video not found")
-    transcript_text = get_transcript_text(video_id)
-    if not transcript_text:
+    segments = get_transcript_segments(video_id)
+    if not segments:
         raise HTTPException(status_code=404, detail="No transcript for this video")
+    return TranscriptResponse(video_id=video_id, segments=segments)
+
+
+@app.post("/chat/{video_id}", response_model=ChatResponse)
+def chat(video_id: str, req: ChatRequest) -> ChatResponse:
+    """Chat with a processed video, grounded in its transcript (+ timestamp citations)."""
+    if get_record(video_id) is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+    segments = get_transcript_segments(video_id)
+    if not segments:
+        raise HTTPException(status_code=404, detail="No transcript for this video")
+    transcript_text = "\n".join(f"[{s['timestamp']}] {s['text']}" for s in segments)
 
     answer = chat_with_transcript(
         transcript_text,
         req.message,
         [turn.model_dump() for turn in req.history],
     )
-    return ChatResponse(video_id=video_id, answer=answer)
+    citations = extract_citations(answer, segments)
+    return ChatResponse(video_id=video_id, answer=answer, citations=citations)
 
 
 @app.get("/mermaid/{video_id}", response_model=MermaidResponse)

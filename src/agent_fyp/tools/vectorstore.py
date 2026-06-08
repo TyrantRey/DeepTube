@@ -125,8 +125,8 @@ def upsert_history(record: VideoRecord, transcript: Transcript) -> None:
     )
 
 
-def get_transcript_text(video_id: str) -> str:
-    """Rebuild a video's timestamped transcript from its stored segments."""
+def get_transcript_segments(video_id: str) -> list[dict]:
+    """Return a video's stored transcript as sorted ``[{start, timestamp, text}]``."""
     collection = _collection()
     data = collection.get(where={"video_id": video_id})
     documents = data.get("documents") or []
@@ -135,11 +135,20 @@ def get_transcript_text(video_id: str) -> str:
     pairs = sorted(
         zip(metadatas, documents), key=lambda pm: float(pm[0].get("start", 0.0))
     )
-    lines = []
+    segments: list[dict] = []
     for meta, doc in pairs:
         seg = Segment(start=float(meta.get("start", 0.0)), text=doc)
-        lines.append(f"[{seg.timestamp}] {seg.text}")
-    return "\n".join(lines)
+        segments.append(
+            {"start": seg.start, "timestamp": seg.timestamp, "text": seg.text}
+        )
+    return segments
+
+
+def get_transcript_text(video_id: str) -> str:
+    """Rebuild a video's timestamped transcript as ``"[MM:SS] text"`` lines."""
+    return "\n".join(
+        f"[{s['timestamp']}] {s['text']}" for s in get_transcript_segments(video_id)
+    )
 
 
 def query_history(query: str, top_k: int | None = None) -> list[dict]:
