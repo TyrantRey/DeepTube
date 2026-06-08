@@ -129,3 +129,7 @@ uv run pytest        # one unit test per stage (network/LLM mocked)
 
 Generated data (downloads, slides, ChromaDB, logs, records) lives under `data/`
 and is git-ignored.
+
+## Contribution
+
+- <https://github.com/LUKEYAU/yt_extractor>
