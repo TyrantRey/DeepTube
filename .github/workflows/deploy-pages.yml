@@ -1,0 +1,74 @@
+name: Deploy frontend to GitHub Pages
+
+# The frontend is a static SPA: it can point at any backend and let each user
+# bring their own Gemini API key (see the in-app ⚙️ 設定 panel), so it deploys to
+# GitHub Pages independently of where the FastAPI backend is hosted.
+#
+# One-time setup: repo Settings → Pages → Source = "GitHub Actions".
+# Optional: set a repo variable VITE_API_URL to bake in a default backend URL
+# (users can still override it at runtime in the settings panel).
+
+on:
+  push:
+    branches: [gh_deploy]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress production deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Project Pages serve under /<repo>/, so the bundle needs that base.
+          VITE_BASE: /${{ github.event.repository.name }}/
+          # Optional default backend URL (overridable in-app); '' → localhost default.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

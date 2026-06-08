@@ -28,7 +28,7 @@ class _FakeClient:
 
 def test_generate_mermaid_strips_fences(monkeypatch):
     fake = _FakeClient("```mermaid\nmindmap\n  root((T))\n    A\n```")
-    monkeypatch.setattr(mermaid, "_get_client", lambda: fake)
+    monkeypatch.setattr(mermaid, "_get_client", lambda api_key=None: fake)
 
     out = mermaid.generate_mermaid("# T\n## 重點摘要\n- a", title="T")
 
@@ -39,7 +39,7 @@ def test_generate_mermaid_strips_fences(monkeypatch):
 
 def test_generate_mermaid_wraps_when_header_missing(monkeypatch):
     fake = _FakeClient("root((X))\n  A")  # model forgot the 'mindmap' header
-    monkeypatch.setattr(mermaid, "_get_client", lambda: fake)
+    monkeypatch.setattr(mermaid, "_get_client", lambda api_key=None: fake)
 
     out = mermaid.generate_mermaid("summary")
 

@@ -28,7 +28,11 @@ class SummaryAgent(BaseAgent):
         progress.report(run_id, "summarizing", 0.4, "產生結構化摘要")
         transcript = Transcript(**state["transcript"])
         summary = await asyncio.to_thread(
-            summarize_content, transcript, state.get("video_type"), run_id=run_id
+            summarize_content,
+            transcript,
+            state.get("video_type"),
+            run_id=run_id,
+            api_key=state.get("api_key"),
         )
 
         state["summary_md"] = summary.markdown

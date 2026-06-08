@@ -135,5 +135,15 @@ class MermaidResponse(BaseModel):
     mermaid: str
 
 
+class ConfigResponse(BaseModel):
+    """Public client config: whether the user must supply their own Gemini key."""
+
+    requires_api_key: bool = Field(
+        description="True when the server has no GOOGLE_API_KEY, so the user must "
+        "provide their own key for LLM features."
+    )
+    gemini_model: str = Field(description="The Gemini model the backend calls")
+
+
 def to_dict(model: BaseModel) -> dict[str, Any]:
     return model.model_dump()

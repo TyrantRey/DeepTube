@@ -26,7 +26,7 @@ class _FakeClient:
 
 def _patch_client(monkeypatch, text):
     client = _FakeClient(text)
-    monkeypatch.setattr(summarizer, "_get_client", lambda: client)
+    monkeypatch.setattr(summarizer, "_get_client", lambda api_key=None: client)
     return client
 
 
@@ -101,7 +101,7 @@ def test_long_transcript_is_segmented_and_merged(monkeypatch):
         def __init__(self):
             self.models = _Models()
 
-    monkeypatch.setattr(summarizer, "_get_client", lambda: _Client())
+    monkeypatch.setattr(summarizer, "_get_client", lambda api_key=None: _Client())
 
     summary = summarizer.summarize_content(transcript, run_id="seg-test")
 

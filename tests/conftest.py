@@ -15,11 +15,12 @@ def isolated_data_dir(tmp_path, monkeypatch):
     config.get_settings.cache_clear()
 
     # Reset module-level caches that close over get_settings().
-    from agent_fyp.tools import summarizer, vectorstore, youtube
+    from agent_fyp import llm
+    from agent_fyp.tools import vectorstore, youtube
 
     vectorstore._collection.cache_clear()
     youtube._whisper_model.cache_clear()
-    summarizer._client = None
+    llm._client_for_key.cache_clear()  # drop any cached BYOK/server Gemini clients
 
     yield
 

@@ -17,6 +17,7 @@ from uuid6 import uuid7
 
 from .. import progress
 from ..agents.orchestrator import get_orchestrator
+from ..llm import MissingApiKeyError
 from ..logging_config import get_run_logger
 from ..tools.vectorstore import find_record_by_youtube_id
 from ..tools.youtube import parse_video_id
@@ -121,11 +122,13 @@ async def run_job(
     video_type: str | None,
     generate_slides: bool,
     language: str | None,
+    api_key: str | None = None,
 ) -> None:
     """Background entrypoint: run the orchestrator and record the outcome.
 
     Before running, check memory: a previously processed URL short-circuits to
-    its cached record without reprocessing.
+    its cached record without reprocessing. ``api_key`` is an optional per-user
+    Gemini key (BYOK) threaded into the summarization step.
     """
     log = get_run_logger(video_id, name="agent_fyp.jobs")
     store._update(video_id, status="running")
@@ -152,9 +155,15 @@ async def run_job(
             generate_slides=generate_slides,
             language=language,
             run_id=video_id,
+            api_key=api_key,
         )
         store.set_progress(video_id, "completed", 1.0, "完成")
         store._update(video_id, status="completed", result=result)
+    except MissingApiKeyError as exc:
+        # No Gemini key (user nor server) — a user-facing, actionable failure.
+        log.warning("Job %s missing API key: %s", video_id, exc)
+        store.set_progress(video_id, "failed", None, "缺少 API 金鑰")
+        store._update(video_id, status="failed", error=str(exc))
     except ValueError as exc:
         # Unparseable URL / bad input — a user-facing, non-exceptional failure.
         log.warning("Job %s rejected: %s", video_id, exc)

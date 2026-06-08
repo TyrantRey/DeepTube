@@ -38,9 +38,28 @@ separate Python unit-lint command beyond Trunk.
 
 ## Required configuration
 
-`GOOGLE_API_KEY` (Google AI Studio / Gemini) is the **only** required secret — set it in
-`.env` (copy `.env.example`). All other settings have defaults in `src/agent_fyp/config.py`
-(`Settings`, loaded via pydantic-settings). Generated data (`data/`) is git-ignored.
+`GOOGLE_API_KEY` (Google AI Studio / Gemini) is the server-wide default key — set it in
+`.env` (copy `.env.example`). It is **optional** when running in BYOK mode (see below):
+leave it blank and each user supplies their own key. All other settings have defaults in
+`src/agent_fyp/config.py` (`Settings`, loaded via pydantic-settings). Generated data
+(`data/`) is git-ignored.
+
+### Bring-your-own-key (BYOK) and per-request key threading
+
+`src/agent_fyp/llm.py` is the single google-genai client factory:
+`get_genai_client(api_key)` prefers a caller-supplied key over the server's
+`GOOGLE_API_KEY`, caches one client per distinct key, and raises `MissingApiKeyError`
+(mapped to HTTP 400) when neither exists. Each LLM tool keeps a thin
+`_get_client(api_key=None)` seam (what tests monkeypatch) that delegates to it.
+
+The user key arrives as the `X-Gemini-Api-Key` header (FastAPI `gemini_api_key`
+dependency in `api/app.py`) and is threaded: endpoint → `chat_with_transcript` /
+`generate_mermaid` directly; for `/process` it rides `run_job` → `orchestrator.process`
+→ `session.state["api_key"]` → `SummaryAgent` → `summarize_content(api_key=...)`. Cache
+hits and the local ONNX embeddings need no key. `GET /config` exposes
+`requires_api_key` (true when the server has no key) so the frontend knows to prompt.
+The React app keeps the key **and** the backend base URL in `localStorage`
+(`frontend/src/api.ts`: `getApiKey`/`getApiUrl`, the `apiFetch` wrapper, **⚙️ 設定** panel).
 
 ## Architecture
 

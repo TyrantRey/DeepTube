@@ -53,10 +53,21 @@ Requires Python 3.13 and [uv](https://docs.astral.sh/uv/). `ffmpeg` is optional
 
 ```bash
 uv sync
-cp .env.example .env   # then set GOOGLE_API_KEY
+cp .env.example .env   # then set GOOGLE_API_KEY (optional — see BYOK below)
 ```
 
-`GOOGLE_API_KEY` (Google AI Studio / Gemini) is the only required secret.
+`GOOGLE_API_KEY` (Google AI Studio / Gemini) is the server-wide default key.
+
+### Bring your own API key (BYOK)
+
+For a public/shared deploy you can leave `GOOGLE_API_KEY` **unset** and let each
+user supply their own Gemini key from the frontend **⚙️ 設定** panel. The key is
+stored only in the browser (`localStorage`) and sent per request as the
+`X-Gemini-Api-Key` header; the backend prefers it over the server key for
+summary, chat, and Mermaid. `GET /config` reports `requires_api_key: true` when
+the server has no key of its own, so the UI knows to prompt for one. The same
+panel lets users point the frontend at any backend (the **後端 API 網址** field,
+overriding the build-time `VITE_API_URL`).
 
 ## Run
 
@@ -119,7 +130,11 @@ original YouTube id is returned separately as `youtube_id`.
 | `POST` | `/chat/{video_id}`              | Chat with the video's transcript; body `{message, history?}` → `{video_id, answer}`        |
 | `GET`  | `/mermaid/{video_id}`           | Mermaid mindmap of the video (from its summary, cached) → `{video_id, mermaid}`            |
 | `GET`  | `/history/search?q=...&top_k=5` | Semantic search → related videos + segments                                                |
+| `GET`  | `/config`                       | Client config: `{requires_api_key, gemini_model}` (BYOK prompt)                            |
 | `GET`  | `/health`                       | Liveness check                                                                             |
+
+`/process`, `/chat/{id}`, and `/mermaid/{id}` accept an optional
+`X-Gemini-Api-Key` header so a caller can run with their own Gemini key.
 
 ## Tests
 

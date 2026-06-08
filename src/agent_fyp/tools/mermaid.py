@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 
 from ..config import get_settings
+from ..llm import get_genai_client
 
 _SYSTEM_PROMPT = """\
 你是一個知識圖譜助理。根據使用者提供的影片摘要，產生一張 Mermaid「mindmap」\
@@ -23,16 +24,9 @@ _SYSTEM_PROMPT = """\
 
 _FENCE_RE = re.compile(r"```(?:mermaid)?\s*(.*?)```", re.DOTALL)
 
-_client: genai.Client | None = None
-
-
-def _get_client() -> genai.Client:
-    """Return a cached Gemini client (reads GOOGLE_API_KEY from settings/env)."""
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = genai.Client(api_key=settings.google_api_key or None)
-    return _client
+def _get_client(api_key: str | None = None) -> genai.Client:
+    """Return a Gemini client, preferring the caller's key over the server key."""
+    return get_genai_client(api_key)
 
 
 def _strip_fences(text: str) -> str:
@@ -43,10 +37,12 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-def generate_mermaid(summary_md: str, title: str | None = None) -> str:
+def generate_mermaid(
+    summary_md: str, title: str | None = None, api_key: str | None = None
+) -> str:
     """Generate Mermaid mindmap syntax from the video summary."""
     settings = get_settings()
-    client = _get_client()
+    client = _get_client(api_key)
 
     prompt = summary_md
     if title:

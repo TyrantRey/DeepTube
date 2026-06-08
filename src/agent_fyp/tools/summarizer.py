@@ -20,6 +20,7 @@ from google.genai import types
 
 from .. import progress
 from ..config import get_settings
+from ..llm import get_genai_client
 from ..models import Segment, Summary, Transcript
 
 # Stable system instruction guiding the summary format.
@@ -95,16 +96,9 @@ Markdown 重點摘要。
 
 _VIDEO_TYPE_RE = re.compile(r"<!--\s*video_type:\s*(.+?)\s*-->", re.IGNORECASE)
 
-_client: genai.Client | None = None
-
-
-def _get_client() -> genai.Client:
-    """Return a cached Gemini client (reads GOOGLE_API_KEY from settings/env)."""
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = genai.Client(api_key=settings.google_api_key or None)
-    return _client
+def _get_client(api_key: str | None = None) -> genai.Client:
+    """Return a Gemini client, preferring the caller's key over the server key."""
+    return get_genai_client(api_key)
 
 
 def _build_user_prompt(transcript: Transcript, video_type: str | None) -> str:
@@ -130,10 +124,12 @@ def _parse_summary(markdown: str, video_type: str | None) -> Summary:
     return Summary(video_type=resolved_type, markdown=clean_markdown)
 
 
-def _summarize_single(transcript: Transcript, video_type: str | None) -> Summary:
+def _summarize_single(
+    transcript: Transcript, video_type: str | None, api_key: str | None = None
+) -> Summary:
     """Single-call summarization (the fast path for normal-length videos)."""
     settings = get_settings()
-    client = _get_client()
+    client = _get_client(api_key)
 
     response = client.models.generate_content(
         model=settings.gemini_model,
@@ -166,11 +162,14 @@ def _chunk_segments_by_chars(
 
 
 def _summarize_segmented(
-    transcript: Transcript, video_type: str | None, run_id: str | None
+    transcript: Transcript,
+    video_type: str | None,
+    run_id: str | None,
+    api_key: str | None = None,
 ) -> Summary:
     """Segment a long transcript, summarize each part, then merge the parts."""
     settings = get_settings()
-    client = _get_client()
+    client = _get_client(api_key)
 
     chunks = _chunk_segments_by_chars(
         transcript.segments, settings.summary_segment_chunk_chars
@@ -234,12 +233,13 @@ def summarize_content(
     transcript: Transcript,
     video_type: str | None = None,
     run_id: str | None = None,
+    api_key: str | None = None,
 ) -> Summary:
     """Summarize a transcript into Markdown, returning the (detected) video type.
 
     Short transcripts take a single Gemini call; long ones are segmented and
     merged so a 30-minute-plus video stays within model limits and reports
-    segmented progress.
+    segmented progress. ``api_key`` lets a caller use their own Gemini key.
     """
     settings = get_settings()
     rendered = transcript.timestamped_text()
@@ -247,5 +247,5 @@ def summarize_content(
         len(rendered) <= settings.summary_segment_char_threshold
         or len(transcript.segments) <= 1
     ):
-        return _summarize_single(transcript, video_type)
-    return _summarize_segmented(transcript, video_type, run_id)
+        return _summarize_single(transcript, video_type, api_key)
+    return _summarize_segmented(transcript, video_type, run_id, api_key)

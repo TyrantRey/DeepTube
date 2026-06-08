@@ -22,7 +22,12 @@ def test_health():
 
 def test_process_flow_and_lookups(monkeypatch, sample_transcript):
     async def fake_process(
-        youtube_url, video_type=None, generate_slides=False, language=None, run_id=None
+        youtube_url,
+        video_type=None,
+        generate_slides=False,
+        language=None,
+        run_id=None,
+        api_key=None,
     ):
         record = VideoRecord(
             video_id=run_id,  # internal uuid7 minted by /process  # ty:ignore[invalid-argument-type]
@@ -92,7 +97,7 @@ def test_chat_endpoint(monkeypatch, sample_transcript):
     monkeypatch.setattr(
         app_module,
         "chat_with_transcript",
-        lambda transcript_text, message, history: f"echo:{message}",
+        lambda transcript_text, message, history, api_key=None: f"echo:{message}",
     )
 
     resp = client.post("/chat/chatvid", json={"message": "what is this about?"})
@@ -117,7 +122,7 @@ def test_mermaid_endpoint_generates_and_caches(monkeypatch, sample_transcript):
 
     calls = {"n": 0}
 
-    def fake_gen(summary_md, title=None):
+    def fake_gen(summary_md, title=None, api_key=None):
         calls["n"] += 1
         return "mindmap\n  root((T))\n    A"
 

@@ -25,6 +25,12 @@ import {
   chat as chatApi,
   pptUrl,
   isUnresolvableUrl,
+  getApiKey,
+  setApiKey,
+  getApiUrl,
+  setApiUrl,
+  getConfig,
+  API_URL,
 } from './api';
 import type {
   JobStatus,
@@ -276,6 +282,13 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // ── Settings (BYOK Gemini key + backend API URL, both runtime-configurable) ──
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiUrlInput, setApiUrlInput] = useState('');
+  const [hasKey, setHasKey] = useState<boolean>(() => Boolean(getApiKey()));
+  const [requiresKey, setRequiresKey] = useState(false);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -328,6 +341,37 @@ export default function App() {
       setCurrentPage('map');
     }
   };
+
+  const openSettings = () => {
+    setApiKeyInput(getApiKey());
+    setApiUrlInput(getApiUrl());
+    setSettingsOpen(true);
+  };
+
+  const saveSettings = () => {
+    setApiUrl(apiUrlInput);
+    setApiKey(apiKeyInput);
+    setHasKey(Boolean(apiKeyInput.trim()));
+    setSettingsOpen(false);
+  };
+
+  // On load, ask the backend whether it requires the user to bring their own
+  // Gemini key; if so and none is stored yet, open settings to prompt for one.
+  useEffect(() => {
+    let cancelled = false;
+    getConfig()
+      .then((cfg) => {
+        if (cancelled) return;
+        setRequiresKey(cfg.requires_api_key);
+        if (cfg.requires_api_key && !getApiKey()) openSettings();
+      })
+      .catch(() => {
+        /* backend unreachable; the URL can be fixed via settings */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The player only lives on the map page and remounts per youtube_id, so its
   // readiness is invalid after a video change or when we leave the map page.
@@ -550,8 +594,40 @@ export default function App() {
             YouTube 影片知識萃取助理 — 知識無人島
           </h1>
         </div>
-        <div style={{ transform: 'scale(0.95)', transformOrigin: 'right center' }}>
-          <Time />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={openSettings}
+            title="設定 API 金鑰與後端網址"
+            style={{
+              background: hasKey ? '#fdfdf5' : '#fff4d6',
+              border: `2px solid ${hasKey ? '#9f927d' : '#e0a92e'}`,
+              borderRadius: '8px',
+              padding: '6px 12px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: '#794f27',
+              boxShadow: '0 2px 0 0 #bdaea0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            ⚙️ 設定
+            <span
+              title={hasKey ? '已設定 API 金鑰' : '尚未設定 API 金鑰'}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: hasKey ? '#3fb27f' : '#e0a92e',
+                display: 'inline-block',
+              }}
+            />
+          </button>
+          <div style={{ transform: 'scale(0.95)', transformOrigin: 'right center' }}>
+            <Time />
+          </div>
         </div>
       </header>
 
@@ -1142,6 +1218,72 @@ export default function App() {
         onOk={() => setIsModalOpen(false)}
       >
         大家早安！秘書已經就位，隨時可以為您解讀影片囉！
+      </Modal>
+
+      <Modal
+        open={settingsOpen}
+        title="⚙️ 設定"
+        onClose={() => setSettingsOpen(false)}
+        onOk={saveSettings}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {requiresKey && !hasKey && (
+            <div
+              style={{
+                background: '#fff4d6',
+                border: '2px solid #e0a92e',
+                borderRadius: 10,
+                padding: '10px 12px',
+                fontSize: 13,
+                color: '#794f27',
+              }}
+            >
+              此服務未內建 API 金鑰，請輸入你自己的 Google Gemini API key 才能使用摘要與問答功能。
+            </div>
+          )}
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontWeight: 700, color: '#794f27', fontSize: 14 }}>
+              Google Gemini API 金鑰
+            </span>
+            <Input
+              type="password"
+              placeholder="AIza..."
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              allowClear
+              onClear={() => setApiKeyInput('')}
+            />
+            <span style={{ fontSize: 12, color: '#998a6f' }}>
+              金鑰只會儲存在你的瀏覽器（localStorage），每次請求才隨標頭送出。可至{' '}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: '#11a89b' }}
+              >
+                Google AI Studio
+              </a>{' '}
+              免費取得。
+            </span>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontWeight: 700, color: '#794f27', fontSize: 14 }}>
+              後端 API 網址
+            </span>
+            <Input
+              placeholder="http://localhost:8000"
+              value={apiUrlInput}
+              onChange={(e) => setApiUrlInput(e.target.value)}
+              allowClear
+              onClear={() => setApiUrlInput('')}
+            />
+            <span style={{ fontSize: 12, color: '#998a6f' }}>
+              留空則使用預設：{API_URL}
+            </span>
+          </label>
+        </div>
       </Modal>
     </div>
   );
