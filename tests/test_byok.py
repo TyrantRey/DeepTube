@@ -61,3 +61,21 @@ def test_config_requires_key_when_server_has_none(monkeypatch):
 
     body = client.get("/config").json()
     assert body["requires_api_key"] is True
+
+
+# ── CORS preflight ───────────────────────────────────────────────────────────
+
+
+def test_cors_preflight_allows_byok_header():
+    """A browser preflight for X-Gemini-Api-Key from an allowed origin succeeds."""
+    resp = client.options(
+        "/process",
+        headers={
+            "Origin": "http://localhost:5173",  # in the default allow-list
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "x-gemini-api-key,content-type",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "x-gemini-api-key" in resp.headers["access-control-allow-headers"].lower()

@@ -52,11 +52,16 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Allow the Vite frontend (default :5173) to call the API from the browser.
+# CORS: let the configured frontend origins call the API from the browser.
+# A wildcard origin ("*") is invalid together with credentials per the CORS spec,
+# and this app carries no cookies/auth — the BYOK key is a plain custom header
+# (X-Gemini-Api-Key) — so credentials are only enabled for an explicit allow-list.
+# `allow_headers=["*"]` already covers that custom header on the preflight.
+_cors_origins = get_settings().allowed_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_settings().allowed_origins,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials="*" not in _cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
