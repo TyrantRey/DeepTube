@@ -20,3 +20,6 @@ __pycache__/
 
 # Tests (not needed at runtime)
 tests/
+
+# Frontend (built/served by its own image, not part of the backend image)
+frontend/

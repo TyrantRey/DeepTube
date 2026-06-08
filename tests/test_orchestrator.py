@@ -31,7 +31,7 @@ def mocked_pipeline(monkeypatch, sample_transcript):
         ingestion, "fetch_transcript", lambda vid, lang: sample_transcript
     )
 
-    def _fake_summary(transcript, video_type=None):
+    def _fake_summary(transcript, video_type=None, run_id=None):
         return Summary(
             video_type=video_type or "教學",
             markdown="# Mocked Talk\n\n## 重點摘要\n- [00:00] point\n\n## 小結\nDone.",

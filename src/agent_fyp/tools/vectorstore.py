@@ -59,8 +59,22 @@ def get_record(video_id: str) -> VideoRecord | None:
 
 
 def list_records() -> list[VideoRecord]:
-    """Return all stored VideoRecords."""
-    return [VideoRecord(**r) for r in _load_records().values()]
+    """Return all stored VideoRecords (newest-first by insertion order)."""
+    return [VideoRecord(**r) for r in reversed(list(_load_records().values()))]
+
+
+def find_record_by_youtube_id(youtube_id: str) -> VideoRecord | None:
+    """Return the most-recently stored record for a YouTube id, or None.
+
+    Used by the API to short-circuit re-processing of a URL already in memory.
+    """
+    if not youtube_id:
+        return None
+    match: dict | None = None
+    for record in _load_records().values():
+        if record.get("youtube_id") == youtube_id:
+            match = record  # keep scanning so the last (newest) one wins
+    return VideoRecord(**match) if match else None
 
 
 def _chunk_segments(segments: list[Segment]) -> list[Segment]:

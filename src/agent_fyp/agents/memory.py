@@ -9,6 +9,7 @@ from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 
+from .. import progress
 from ..logging_config import get_run_logger
 from ..models import Transcript, VideoRecord
 from ..tools.vectorstore import upsert_history
@@ -21,7 +22,9 @@ class MemoryAgent(BaseAgent):
         self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         state = ctx.session.state
-        log = get_run_logger(state["run_id"], name="agent_fyp.memory")
+        run_id = state["run_id"]
+        log = get_run_logger(run_id, name="agent_fyp.memory")
+        progress.report(run_id, "indexing", 0.95, "寫入記憶並建立索引")
 
         metadata = state.get("video_metadata") or {}
         record = VideoRecord(

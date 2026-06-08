@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from ..config import get_settings
@@ -14,6 +15,7 @@ from ..tools.mermaid import generate_mermaid
 from ..tools.vectorstore import (
     get_record,
     get_transcript_text,
+    list_records,
     query_history,
     save_record,
 )
@@ -21,6 +23,8 @@ from .jobs import JobStore, run_job
 from .schemas import (
     ChatRequest,
     ChatResponse,
+    HistoryItem,
+    HistoryListResponse,
     HistorySearchResponse,
     JobCreated,
     JobStatus,
@@ -36,6 +40,15 @@ app = FastAPI(
     title="AI YouTube 影片知識萃取助理",
     description="Backend pipeline: download → summarize → slides → memory.",
     version="0.1.0",
+)
+
+# Allow the Vite frontend (default :5173) to call the API from the browser.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 _store = JobStore()
@@ -70,6 +83,25 @@ async def process(req: ProcessRequest, background: BackgroundTasks) -> JobCreate
 def list_process() -> ProcessListResponse:
     """List current videos grouped by job state: processing vs finished."""
     return ProcessListResponse(**_store.grouped())
+
+
+@app.get("/history", response_model=HistoryListResponse)
+def history_list() -> HistoryListResponse:
+    """List all processed videos (newest first) for the frontend history sidebar."""
+    items = [
+        HistoryItem(
+            video_id=r.video_id,
+            youtube_id=r.youtube_id,
+            url=r.url,
+            title=r.title,
+            video_type=r.video_type,
+            summary_md=r.summary_md,
+            has_slides=bool(r.slides_path),
+            has_mermaid=bool(r.mermaid),
+        )
+        for r in list_records()
+    ]
+    return HistoryListResponse(items=items)
 
 
 @app.get("/jobs/{video_id}", response_model=JobStatus)

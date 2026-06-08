@@ -13,6 +13,7 @@ from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 
+from .. import progress
 from ..logging_config import get_run_logger
 from ..tools.youtube import (
     TranscriptUnavailable,
@@ -31,23 +32,36 @@ class IngestionAgent(BaseAgent):
     ) -> AsyncGenerator[Event, None]:
         state = ctx.session.state
         url = state["youtube_url"]
-        log = get_run_logger(state["run_id"], name="agent_fyp.ingestion")
+        run_id = state["run_id"]
+        log = get_run_logger(run_id, name="agent_fyp.ingestion")
 
+        progress.report(run_id, "ingesting", 0.05, "解析影片資訊")
         youtube_id = await asyncio.to_thread(parse_video_id, url)
         state["youtube_id"] = youtube_id
-        log.info("Ingesting youtube_id=%s (video_id=%s)", youtube_id, state["run_id"])
+        log.info("Ingesting youtube_id=%s (video_id=%s)", youtube_id, run_id)
 
         metadata = await asyncio.to_thread(fetch_metadata, url)
 
         try:
+            progress.report(run_id, "ingesting", 0.15, "檢查內建字幕")
             transcript = await asyncio.to_thread(
                 fetch_transcript, youtube_id, state.get("language")
             )
             log.info("Captions found (%d segments)", len(transcript.segments))
+            progress.report(
+                run_id, "ingesting", 0.35, "已取得內建字幕（fetch_transcript）"
+            )
         except TranscriptUnavailable:
             log.info("No captions — falling back to Whisper")
+            progress.report(
+                run_id,
+                "transcribing",
+                0.2,
+                "無字幕，下載並以 Whisper 轉錄（download_and_transcribe）",
+            )
             transcript = await asyncio.to_thread(download_and_transcribe, url)
             log.info("Whisper transcribed (%d segments)", len(transcript.segments))
+            progress.report(run_id, "transcribing", 0.38, "Whisper 轉錄完成")
 
         metadata.transcript_source = transcript.source
         transcript_data = transcript.model_dump()

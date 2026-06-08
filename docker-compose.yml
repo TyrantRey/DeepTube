@@ -11,11 +11,26 @@ services:
       - DATA_DIR=/app/data
       - HOST=0.0.0.0
       - PORT=8000
+      # Allow the dockerised frontend (host browser at :5173) to call the API.
+      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     volumes:
       # Persist downloads, slides, ChromaDB, logs, and records.json
       - ./data:/app/data
       # Persist downloaded models (faster-whisper + Chroma ONNX embedder)
       - model-cache:/root/.cache
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    image: agentfyp-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # The browser (on the host) reaches the API via the published port.
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:
