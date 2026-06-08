@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { Children, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   Button,
   Input,
@@ -12,6 +13,7 @@ import {
 } from 'animal-island-ui';
 import ReactMarkdown from 'react-markdown';
 import { Mermaid } from './Mermaid';
+import { YouTubePlayer } from './YouTubePlayer';
 import {
   startProcess,
   pollJob,
@@ -19,6 +21,7 @@ import {
   getHistory,
   searchHistory,
   getMermaid,
+  getTranscript,
   chat as chatApi,
   pptUrl,
   isUnresolvableUrl,
@@ -29,6 +32,8 @@ import type {
   HistoryItem,
   HistoryHit,
   ChatTurn,
+  Citation,
+  SegmentHit,
 } from './api';
 
 type Page = 'upload' | 'map' | 'chat';
@@ -37,6 +42,7 @@ interface ChatMessage {
   id: string;
   sender: 'secretary' | 'user';
   text: string;
+  citations?: Citation[];
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -54,6 +60,46 @@ const STAGE_LABELS: Record<string, string> = {
 
 function welcomeText(title: string, summary: string): string {
   return `我已經幫你讀完《${title}》的內容囉！以下是這部影片的結構化重點摘要，有任何細節問題都可以問我：\n\n${summary}`;
+}
+
+// ── Timestamp helpers: turn [MM:SS] / [H:MM:SS] text into seek buttons ───────
+const TS_RE = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g;
+
+function tsToSeconds(a: string, b: string, c?: string): number {
+  return c == null
+    ? Number(a) * 60 + Number(b)
+    : Number(a) * 3600 + Number(b) * 60 + Number(c);
+}
+
+function linkifyTimestamps(text: string, onSeek: (s: number) => void): ReactNode[] {
+  const out: ReactNode[] = [];
+  const re = new RegExp(TS_RE.source, 'g');
+  let last = 0;
+  let i = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const secs = tsToSeconds(m[1], m[2], m[3]);
+    out.push(
+      <button
+        key={`t${i++}`}
+        type="button"
+        className="ts-link"
+        onClick={() => onSeek(secs)}
+      >
+        {m[0]}
+      </button>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+function renderWithSeek(children: ReactNode, onSeek: (s: number) => void): ReactNode {
+  return Children.map(children, (child) =>
+    typeof child === 'string' ? linkifyTimestamps(child, onSeek) : child,
+  );
 }
 
 // ── Mermaid knowledge-map panel (lazy: fetches on first view) ────────────────
@@ -94,6 +140,123 @@ function MermaidPanel({ videoId }: { videoId: string }) {
   return <Mermaid code={code} />;
 }
 
+// ── Transcript viewer panel (lazy, filterable, click-to-seek) ────────────────
+function TranscriptPanel({
+  videoId,
+  onSeek,
+}: {
+  videoId: string;
+  onSeek: (s: number) => void;
+}) {
+  const [segments, setSegments] = useState<SegmentHit[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setSegments(null);
+    getTranscript(videoId)
+      .then((s) => {
+        if (!cancelled) setSegments(s);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
+
+  if (loading)
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 24 }}>
+        <Loading active /> <span>載入逐字稿...</span>
+      </div>
+    );
+  if (error)
+    return <div style={{ color: '#e05a5a', padding: 16 }}>逐字稿載入失敗：{error}</div>;
+  if (!segments) return null;
+
+  const q = filter.trim().toLowerCase();
+  const shown = q ? segments.filter((s) => s.text.toLowerCase().includes(q)) : segments;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 12 }}>
+        <Input
+          size="small"
+          placeholder="在逐字稿中搜尋關鍵字..."
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          allowClear
+          onClear={() => setFilter('')}
+        />
+      </div>
+      <div
+        style={{
+          maxHeight: 440,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
+        {shown.length === 0 ? (
+          <div style={{ color: '#c4b89e', fontStyle: 'italic', padding: 12 }}>
+            找不到符合的內容
+          </div>
+        ) : (
+          shown.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSeek(s.start)}
+              style={{
+                display: 'flex',
+                gap: 12,
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px dashed #eee',
+                padding: '8px 6px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: '#725d42',
+              }}
+            >
+              <span
+                style={{ color: '#11a89b', fontWeight: 700, minWidth: 64, flexShrink: 0 }}
+              >
+                {s.timestamp}
+              </span>
+              <span style={{ fontSize: 14, lineHeight: 1.5 }}>{s.text}</span>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function hitToItem(hit: HistoryHit): HistoryItem {
+  return {
+    video_id: hit.video_id,
+    youtube_id: hit.youtube_id,
+    url: hit.url,
+    title: hit.title,
+    video_type: hit.video_type,
+    summary_md: '',
+    has_slides: false,
+    has_mermaid: false,
+  };
+}
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('upload');
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -118,6 +281,55 @@ export default function App() {
   const [searching, setSearching] = useState(false);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Shared YouTube player + seek state (player lives on the map page).
+  const playerRef = useRef<any>(null);
+  const [playerReady, setPlayerReady] = useState(false);
+  const pendingSeekRef = useRef<number | null>(null);
+
+  const handlePlayerReady = (player: any) => {
+    playerRef.current = player;
+    setPlayerReady(true);
+    if (pendingSeekRef.current != null) {
+      try {
+        player.seekTo(pendingSeekRef.current, true);
+        player.playVideo?.();
+      } catch {
+        /* ignore */
+      }
+      pendingSeekRef.current = null;
+    }
+  };
+
+  const seekTo = (seconds: number) => {
+    const p = playerRef.current;
+    if (p && playerReady) {
+      try {
+        p.seekTo(seconds, true);
+        p.playVideo?.();
+      } catch {
+        /* ignore */
+      }
+      if (currentPage !== 'map') setCurrentPage('map');
+    } else {
+      pendingSeekRef.current = seconds;
+      setCurrentPage('map');
+    }
+  };
+
+  // The player only lives on the map page and remounts per youtube_id, so its
+  // readiness is invalid after a video change or when we leave the map page.
+  useEffect(() => {
+    setPlayerReady(false);
+    playerRef.current = null;
+  }, [current?.youtube_id]);
+
+  useEffect(() => {
+    if (currentPage !== 'map') {
+      setPlayerReady(false);
+      playerRef.current = null;
+    }
+  }, [currentPage]);
 
   const refreshHistory = async () => {
     try {
@@ -155,6 +367,16 @@ export default function App() {
     } catch (e) {
       setErrorMsg(`無法載入此紀錄：${(e as Error).message}`);
     }
+  };
+
+  // Load a searched video (if not current) then seek to the matched moment.
+  const openAndSeek = async (hit: HistoryHit, seconds: number) => {
+    if (current?.video_id === hit.video_id && playerReady) {
+      seekTo(seconds);
+      return;
+    }
+    pendingSeekRef.current = seconds;
+    await handleSelectHistory(hitToItem(hit));
   };
 
   const handleExtract = async () => {
@@ -204,8 +426,7 @@ export default function App() {
       sender: 'user',
       text,
     };
-    const nextMessages = [...chatMessages, userMessage];
-    setChatMessages(nextMessages);
+    setChatMessages((prev) => [...prev, userMessage]);
     setChatInput('');
     setChatSending(true);
 
@@ -218,10 +439,15 @@ export default function App() {
       }));
 
     try {
-      const answer = await chatApi(current.video_id, text, history);
+      const reply = await chatApi(current.video_id, text, history);
       setChatMessages((prev) => [
         ...prev,
-        { id: `s-${prev.length}`, sender: 'secretary', text: answer },
+        {
+          id: `s-${prev.length}`,
+          sender: 'secretary',
+          text: reply.answer,
+          citations: reply.citations,
+        },
       ]);
     } catch (e) {
       setChatMessages((prev) => [
@@ -357,7 +583,7 @@ export default function App() {
             <div
               style={{
                 marginBottom: 10,
-                maxHeight: '32%',
+                maxHeight: '34%',
                 overflowY: 'auto',
                 background: '#fff',
                 border: '2px solid #e1dacb',
@@ -373,31 +599,41 @@ export default function App() {
                 searchResults.map((hit) => (
                   <div
                     key={hit.video_id}
-                    onClick={() =>
-                      handleSelectHistory({
-                        video_id: hit.video_id,
-                        youtube_id: hit.youtube_id,
-                        url: hit.url,
-                        title: hit.title,
-                        video_type: hit.video_type,
-                        summary_md: '',
-                        has_slides: false,
-                        has_mermaid: false,
-                      })
-                    }
-                    style={{
-                      padding: '6px 8px',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      color: '#725d42',
-                      borderBottom: '1px dashed #eee',
-                    }}
-                    title={hit.segments[0]?.text}
+                    style={{ borderBottom: '1px dashed #eee', padding: '6px 2px' }}
                   >
-                    📺 {hit.title || hit.youtube_id}
-                    <span style={{ color: '#19c8b9', marginLeft: 6 }}>
-                      {(hit.score * 100).toFixed(0)}%
-                    </span>
+                    <div
+                      onClick={() => handleSelectHistory(hitToItem(hit))}
+                      style={{
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: '#725d42',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={hit.title}
+                    >
+                      📺 {hit.title || hit.youtube_id}{' '}
+                      <span style={{ color: '#19c8b9' }}>
+                        {(hit.score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}
+                    >
+                      {hit.segments.slice(0, 4).map((seg, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className="seg-chip"
+                          title={seg.text}
+                          onClick={() => openAndSeek(hit, seg.start)}
+                        >
+                          {seg.timestamp}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}
@@ -638,7 +874,7 @@ export default function App() {
               </Card>
             )}
 
-            {/* Map page: summary + mermaid + slides */}
+            {/* Map page: player + summary + transcript + mermaid + slides */}
             {currentPage === 'map' && current && (
               <Card color="app-yellow" style={{ minHeight: '100%', boxSizing: 'border-box' }}>
                 <div
@@ -693,7 +929,17 @@ export default function App() {
                 </div>
                 <Divider type="wave-yellow" />
 
-                <div style={{ marginTop: 16 }}>
+                {current.youtube_id && (
+                  <div style={{ marginTop: 16 }}>
+                    <YouTubePlayer
+                      key={current.youtube_id}
+                      videoId={current.youtube_id}
+                      onReady={handlePlayerReady}
+                    />
+                  </div>
+                )}
+
+                <div style={{ marginTop: 8 }}>
                   <Tabs
                     items={[
                       {
@@ -711,7 +957,34 @@ export default function App() {
                               lineHeight: 1.7,
                             }}
                           >
-                            <ReactMarkdown>{current.summary_md}</ReactMarkdown>
+                            <ReactMarkdown
+                              components={{
+                                li: ({ children }: any) => (
+                                  <li>{renderWithSeek(children, seekTo)}</li>
+                                ),
+                                p: ({ children }: any) => (
+                                  <p>{renderWithSeek(children, seekTo)}</p>
+                                ),
+                              }}
+                            >
+                              {current.summary_md}
+                            </ReactMarkdown>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'transcript',
+                        label: '📃 逐字稿',
+                        children: (
+                          <div
+                            style={{
+                              background: '#fff',
+                              border: '3px solid #9f927d',
+                              borderRadius: 18,
+                              padding: '16px 20px',
+                            }}
+                          >
+                            <TranscriptPanel videoId={current.video_id} onSeek={seekTo} />
                           </div>
                         ),
                       },
@@ -771,6 +1044,28 @@ export default function App() {
                         <div style={{ color: '#725d42', fontSize: '15px', lineHeight: 1.6 }}>
                           <strong>秘書：</strong>
                           <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>
+                          {msg.citations && msg.citations.length > 0 && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 6,
+                                marginTop: 8,
+                              }}
+                            >
+                              {msg.citations.map((c, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  className="cite-chip"
+                                  title={c.quote}
+                                  onClick={() => seekTo(c.start)}
+                                >
+                                  🔖 {c.timestamp} · {c.quote}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div
@@ -820,7 +1115,7 @@ export default function App() {
             {((currentPage === 'map' || currentPage === 'chat') && !current) && (
               <Card type="dashed" style={{ minHeight: '100%' }}>
                 <div style={{ textAlign: 'center', padding: '60px 0', color: '#9f927d' }}>
-                  尚未選擇影片，請先「➕ 提取新影片」或從左側歷史清單挑選。
+                  尚未選擇影片,請先「➕ 提取新影片」或從左側歷史清單挑選。
                 </div>
               </Card>
             )}

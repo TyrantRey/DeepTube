@@ -62,15 +62,29 @@ class ChatRequest(BaseModel):
     )
 
 
+class Citation(BaseModel):
+    """A transcript moment that supports a chat answer."""
+
+    timestamp: str
+    start: float
+    quote: str
+
+
 class ChatResponse(BaseModel):
     video_id: str
     answer: str
+    citations: list[Citation] = Field(default_factory=list)
 
 
 class SegmentHit(BaseModel):
     start: float
     timestamp: str
     text: str
+
+
+class TranscriptResponse(BaseModel):
+    video_id: str
+    segments: list[SegmentHit]
 
 
 class HistoryHit(BaseModel):

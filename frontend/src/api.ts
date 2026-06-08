@@ -69,6 +69,17 @@ export interface ChatTurn {
   content: string;
 }
 
+export interface Citation {
+  timestamp: string;
+  start: number;
+  quote: string;
+}
+
+export interface ChatReply {
+  answer: string;
+  citations: Citation[];
+}
+
 export interface SegmentHit {
   start: number;
   timestamp: string;
@@ -141,18 +152,29 @@ export async function getMermaid(videoId: string): Promise<string> {
   return data.mermaid;
 }
 
+export async function getTranscript(videoId: string): Promise<SegmentHit[]> {
+  const data = await asJson<{ video_id: string; segments: SegmentHit[] }>(
+    await fetch(`${API_URL}/transcript/${videoId}`),
+  );
+  return data.segments;
+}
+
 export async function chat(
   videoId: string,
   message: string,
   history: ChatTurn[],
-): Promise<string> {
+): Promise<ChatReply> {
   const res = await fetch(`${API_URL}/chat/${videoId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history }),
   });
-  const data = await asJson<{ video_id: string; answer: string }>(res);
-  return data.answer;
+  const data = await asJson<{
+    video_id: string;
+    answer: string;
+    citations: Citation[];
+  }>(res);
+  return { answer: data.answer, citations: data.citations || [] };
 }
 
 export function pptUrl(videoId: string): string {

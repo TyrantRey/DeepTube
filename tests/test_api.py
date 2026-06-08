@@ -97,7 +97,10 @@ def test_chat_endpoint(monkeypatch, sample_transcript):
 
     resp = client.post("/chat/chatvid", json={"message": "what is this about?"})
     assert resp.status_code == 200
-    assert resp.json() == {"video_id": "chatvid", "answer": "echo:what is this about?"}
+    data = resp.json()
+    assert data["video_id"] == "chatvid"
+    assert data["answer"] == "echo:what is this about?"
+    assert data["citations"] == []  # answer has no [MM:SS] markers
 
     assert client.post("/chat/missing", json={"message": "x"}).status_code == 404
 
