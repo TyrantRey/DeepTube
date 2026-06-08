@@ -49,6 +49,18 @@ uv run agentfyp
 uv run python scripts/run_pipeline.py "https://www.youtube.com/watch?v=<id>"
 ```
 
+### Docker
+
+```bash
+cp .env.example .env   # set GOOGLE_API_KEY
+docker compose up --build      # serves http://localhost:8000
+```
+
+The compose file binds the server to `0.0.0.0:8000` and mounts two volumes:
+`./data` (downloads, slides, ChromaDB, logs, `records.json`) and a named
+`model-cache` volume (the faster-whisper and Chroma ONNX models, downloaded on
+first use). `GOOGLE_API_KEY` is read from `.env`.
+
 ## Endpoints
 
 `POST /process` mints one internal **`video_id` (uuid7)** that is the single id

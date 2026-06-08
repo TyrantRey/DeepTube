@@ -1,0 +1,22 @@
+# Virtual env (host-built; would break the linux image)
+.venv/
+
+# Runtime data + secrets
+data/
+.env
+.env.*
+
+# Git / CI
+.git/
+.gitignore
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Tests (not needed at runtime)
+tests/

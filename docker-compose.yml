@@ -1,0 +1,22 @@
+services:
+  api:
+    build: .
+    image: agentfyp
+    ports:
+      - "8000:8000"
+    # GOOGLE_API_KEY (and any optional overrides) come from .env
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      # Persist downloads, slides, ChromaDB, logs, and records.json
+      - ./data:/app/data
+      # Persist downloaded models (faster-whisper + Chroma ONNX embedder)
+      - model-cache:/root/.cache
+    restart: unless-stopped
+
+volumes:
+  model-cache:
